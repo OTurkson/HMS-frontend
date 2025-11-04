@@ -1,41 +1,47 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SideNav } from "../components/SideNavBar"; // Custom styles for better alignment.
 import { Button } from "rsuite";
+import { patientsAPI, Patient } from "../api";
 
-interface User {
-  id: number;
-  firstName: string;
-  lastName: string;
-  gender: string;
-  age: number;
-  postcode: string;
-  email: string;
-}
-
-const mockUsers = (num: number): User[] => {
-  const users: User[] = [];
-  for (let i = 1; i <= num; i++) {
-    users.push({
-      id: i,
-      firstName: `FirstName${i}`,
-      lastName: `LastName${i}`,
-      gender: i % 2 === 0 ? "Male" : "Female",
-      age: Math.floor(Math.random() * 60) + 18,
-      postcode: `100${i}`,
-      email: `user${i}@example.com`,
-    });
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth: string): number => {
+  const birth = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
   }
-  return users;
+  return age;
 };
 
-const data = mockUsers(20);
-
 export const Patients = () => {
-  const [selectedRow, setSelectedRow] = useState<User | null>(null);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
 
-  const handleRowClick = (rowData: User) => {
-    setSelectedRow(rowData);
-    console.log(rowData);
+  // Fetch patients from API
+  const fetchPatients = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await patientsAPI.getAll();
+      setPatients(response.patients);
+    } catch (error: any) {
+      console.error("Error fetching patients:", error);
+      setError("Failed to fetch patients. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load patients when component mounts
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
+  const handleRowClick = (patient: Patient) => {
+    console.log("Selected patient:", patient);
   };
 
   return (
@@ -57,7 +63,7 @@ export const Patients = () => {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Id
+                    Patient ID
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     First Name
@@ -72,7 +78,7 @@ export const Patients = () => {
                     Age
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Postcode
+                    Address
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Email
@@ -83,46 +89,72 @@ export const Patients = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {data.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleRowClick(row)}
-                  >
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      {row.id}
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      Loading patients...
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      {row.firstName}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      {row.lastName}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      {row.gender}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      {row.age}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      {row.postcode}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
-                      {row.email}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900">
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center">
+                      <p className="text-red-500">{error}</p>
                       <button
-                        className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent row click event
-                          alert(`Editing patient with id: ${row.id}`);
-                        }}
+                        onClick={fetchPatients}
+                        className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
                       >
-                        View Records
+                        Retry
                       </button>
                     </td>
                   </tr>
-                ))}
+                ) : patients.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      No patients found
+                    </td>
+                  </tr>
+                ) : (
+                  patients.map((patient) => (
+                    <tr
+                      key={patient.patient_id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleRowClick(patient)}
+                    >
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {patient.patient_id}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {patient.first_name || 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {patient.last_name || 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {patient.gender}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {calculateAge(patient.date_of_birth)}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {patient.address ? patient.address.substring(0, 20) + '...' : 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {patient.email || 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        <button
+                          className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent row click event
+                            alert(`Viewing records for patient ID: ${patient.patient_id}`);
+                          }}
+                        >
+                          View Records
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
